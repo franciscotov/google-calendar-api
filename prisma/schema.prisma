@@ -16,8 +16,8 @@ model User {
   id          String      @id @default(uuid())
   email       String      @unique
 
-  createAt    DateTime    @default(now())
-  updateAt    DateTime    @updatedAt
+  createAt    DateTime    @db.Timestamptz(3)    @default(now())
+  updateAt    DateTime    @db.Timestamptz(3)    @updatedAt
 
   bookings    Booking[]
 }
@@ -27,13 +27,13 @@ model Booking {
   date        DateTime
   title       String
 
-  startsAt     DateTime
-  endsAt       DateTime
+  startsAt     DateTime   @db.Timestamptz(3)
+  endsAt       DateTime   @db.Timestamptz(3)
 
-  createAt    DateTime    @default(now())
-  updateAt    DateTime    @updatedAt
+  createAt    DateTime    @db.Timestamptz(3)    @default(now())
+  updateAt    DateTime    @db.Timestamptz(3)    @updatedAt
 
-  @@index([startsAt, endsAt])
+  @@index([userId, startsAt])
 
   userId      String
   user        User        @relation(fields: [userId], references: [id])
