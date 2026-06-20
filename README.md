@@ -26,6 +26,32 @@ $ npm run start:prod
 $ npx prisma migrate dev --name init
 ```
 
+## Docker
+
+Build the Docker image:
+
+```bash
+# Generating app using docker
+# Build image
+docker build -t google-calendar-api:latest .
+
+# Run with external DB
+docker run -p 3001:3001 \
+  -e DATABASE_URL="postgresql://..." \
+  google-calendar-api:latest
+
+# Start both services
+docker-compose up
+
+# Run migrations if needed
+docker-compose exec api npx prisma migrate deploy
+
+# Stop services
+docker-compose down
+
+```
+
+
 ## Run tests
 
 ```bash
