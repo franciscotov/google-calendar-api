@@ -5,15 +5,15 @@ services:
     image: postgres:16-alpine
     container_name: google-calendar-db-prod
     environment:
-      POSTGRES_USER: ${DB_USER:-googlecalendardb}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-sJ95NLcccVdTWhOlRvjC7P5SZB7HGNSZ}
-      POSTGRES_DB: ${DB_NAME:-googlecalendardb}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "${DB_PORT:-5432}:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data_prod:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-googlecalendardb}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -27,10 +27,10 @@ services:
     container_name: google-calendar-api-prod
     environment:
       NODE_ENV: production
-      PORT: ${PORT:-3001}
+      PORT: ${PORT}
       DATABASE_URL: ${DATABASE_URL}
     ports:
-      - "${PORT:-3001}:3001"
+      - "${PORT}:3001"
     depends_on:
       postgres:
         condition: service_healthy

@@ -32,6 +32,9 @@ Build the Docker image:
 
 ```bash
 # Generating app using docker
+# Start both services and app runs(this uses port 3001 by default)
+docker-compose up
+
 # Build image
 docker build -t google-calendar-api:latest .
 
@@ -39,9 +42,6 @@ docker build -t google-calendar-api:latest .
 docker run -p 3001:3001 \
   -e DATABASE_URL="postgresql://..." \
   google-calendar-api:latest
-
-# Start both services
-docker-compose up
 
 # Run migrations if needed
 docker-compose exec api npx prisma migrate deploy
