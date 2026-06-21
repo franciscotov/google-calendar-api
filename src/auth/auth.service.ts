@@ -7,7 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
 import { UsersService } from '../users/users.service';
-
+import { User } from '../../generated/prisma/client';
 @Injectable()
 export class AuthService {
   constructor(
@@ -16,11 +16,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.usersService.findByEmail(dto.email);
-
-    if (existing) {
-      throw new BadRequestException('Email already registered');
-    }
+    await this.checkForExistingUser(dto.email);
 
     const user = await this.usersService.createUser({
       email: dto.email,
@@ -30,32 +26,34 @@ export class AuthService {
     const token = await this.signToken(user.id, user.email);
 
     return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      },
       accessToken: token,
     };
   }
 
   async login(dto: LoginDto) {
-    const user = await this.usersService.findByEmail(dto.email);
+    const user = await this.findUser(dto.email);
+    const token = await this.signToken(user!.id, user!.email);
+    return {
+      accessToken: token,
+    };
+  }
+
+  private async findUser(email: string): Promise<User | null> {
+    const user = await this.usersService.findByEmail(email);
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const token = await this.signToken(user.id, user.email);
+    return user;
+  }
 
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-      },
-      accessToken: token,
-    };
+  private async checkForExistingUser(email: string) {
+    const existing = await this.usersService.findByEmail(email);
+
+    if (existing) {
+      throw new BadRequestException('Email already registered');
+    }
   }
 
   private signToken(userId: string, email: string) {
