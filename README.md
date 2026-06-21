@@ -23,6 +23,7 @@ $ npm run start:dev
 $ npm run start:prod
 
 # generate the SQL migration files and run them against the database(if your are running it locally).
+# change/create the DATABASE_URL env variable to reach the correct database 
 $ npx prisma migrate dev --name init
 ```
 
