@@ -5,7 +5,6 @@
 
 generator client {
   provider = "prisma-client"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -15,6 +14,8 @@ datasource db {
 model User {
   id          String      @id @default(uuid())
   email       String      @unique
+  name        String?
+  googleCalendarId String?
 
   createAt    DateTime    @db.Timestamptz(3)    @default(now())
   updateAt    DateTime    @db.Timestamptz(3)    @updatedAt
@@ -32,6 +33,7 @@ model Booking {
 
   createAt    DateTime    @db.Timestamptz(3)    @default(now())
   updateAt    DateTime    @db.Timestamptz(3)    @updatedAt
+  googleEventId String?
 
   @@index([userId, startsAt])
 
