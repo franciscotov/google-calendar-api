@@ -5,6 +5,7 @@ import {
   Get,
   Headers,
   Param,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -44,6 +45,14 @@ export class BookingsController {
   @Get('calendar')
   getConnectedCalendar(@CurrentUser() user: JwtUserDto) {
     return this.bookingsService.getConnectedCalendar(user.sub);
+  }
+
+  @Patch('calendar/connect')
+  connectCalendar(
+    @CurrentUser() user: JwtUserDto,
+    @Body('calendarId') calendarId: string,
+  ) {
+    return this.bookingsService.connectCalendar(user.sub, calendarId);
   }
 
   @Get('taken')

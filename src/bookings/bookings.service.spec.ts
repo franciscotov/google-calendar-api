@@ -17,6 +17,7 @@ describe('BookingsService', () => {
   const prisma = {
     user: {
       findUnique: jest.fn(),
+      update: jest.fn(),
     },
     booking: {
       findFirst: jest.fn(),
@@ -86,8 +87,26 @@ describe('BookingsService', () => {
       id: 'booking-1',
     });
 
-    expect(prisma.booking.create).toHaveBeenCalledTimes(1);
-    const createArgs = prisma.booking.create.mock.calls[0][0];
+    const bookingPrisma = prisma.booking as unknown as {
+      create: jest.Mock;
+    };
+    const createMock = bookingPrisma.create;
+    expect(createMock).toHaveBeenCalledTimes(1);
+
+    const createCalls = createMock.mock.calls as Array<
+      [
+        {
+          data: {
+            title: string;
+            userId: string;
+            startsAt: Date;
+            endsAt: Date;
+          };
+        },
+      ]
+    >;
+    const createArgs = createCalls[0][0];
+
     expect(createArgs.data.title).toBe('Planning meeting');
     expect(createArgs.data.userId).toBe('user-1');
     expect(createArgs.data.startsAt).toBeInstanceOf(Date);
@@ -97,9 +116,9 @@ describe('BookingsService', () => {
   it('cancelBooking should throw when booking is not found', async () => {
     prisma.booking.findFirst = jest.fn().mockResolvedValue(null);
 
-    await expect(service.cancelBooking('user-1', 'booking-1')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.cancelBooking('user-1', 'booking-1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('cancelBooking should delete and return success payload', async () => {
@@ -113,7 +132,11 @@ describe('BookingsService', () => {
       },
     );
 
-    expect(prisma.booking.delete).toHaveBeenCalledWith({
+    const bookingPrisma = prisma.booking as unknown as {
+      delete: jest.Mock;
+    };
+    const deleteMock = bookingPrisma.delete;
+    expect(deleteMock).toHaveBeenCalledWith({
       where: { id: 'booking-1' },
     });
   });
@@ -142,12 +165,67 @@ describe('BookingsService', () => {
     });
   });
 
+  it('connectCalendar should validate calendar id', async () => {
+    await expect(
+      service.connectCalendar('user-1', '   '),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('connectCalendar should throw not found when user is missing', async () => {
+    prisma.user.update = jest.fn().mockRejectedValue({ code: 'P2025' });
+
+    await expect(
+      service.connectCalendar('user-1', 'primary'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('connectCalendar should persist trimmed calendar id', async () => {
+    prisma.user.update = jest.fn().mockResolvedValue({
+      id: 'user-1',
+      email: 'user@example.com',
+      googleCalendarId: 'primary',
+    });
+
+    await expect(
+      service.connectCalendar('user-1', '  primary  '),
+    ).resolves.toEqual({
+      ok: true,
+      user: {
+        id: 'user-1',
+        email: 'user@example.com',
+        googleCalendarId: 'primary',
+      },
+    });
+
+    const userPrisma = prisma.user as unknown as {
+      update: jest.Mock;
+    };
+    const updateMock = userPrisma.update;
+    expect(updateMock).toHaveBeenCalledWith({
+      where: {
+        id: 'user-1',
+      },
+      data: {
+        googleCalendarId: 'primary',
+      },
+      select: {
+        id: true,
+        email: true,
+        googleCalendarId: true,
+      },
+    });
+  });
+
   it('listBookings should query by user ordered by startsAt', async () => {
     prisma.booking.findMany = jest.fn().mockResolvedValue([]);
 
     await service.listBookings('user-9');
 
-    expect(prisma.booking.findMany).toHaveBeenCalledWith({
+    const bookingPrisma = prisma.booking as unknown as {
+      findMany: jest.Mock;
+    };
+    const findManyMock = bookingPrisma.findMany;
+    expect(findManyMock).toHaveBeenCalledWith({
       where: { userId: 'user-9' },
       orderBy: { startsAt: 'asc' },
     });
@@ -158,7 +236,11 @@ describe('BookingsService', () => {
 
     await service.listTakenSlots();
 
-    expect(prisma.booking.findMany).toHaveBeenCalledWith({
+    const bookingPrisma = prisma.booking as unknown as {
+      findMany: jest.Mock;
+    };
+    const findManyMock = bookingPrisma.findMany;
+    expect(findManyMock).toHaveBeenCalledWith({
       select: {
         id: true,
         startsAt: true,

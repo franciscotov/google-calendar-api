@@ -10,6 +10,15 @@ import { GoogleCalendarService } from '../google-calendar/google-calendar.servic
 
 @Injectable()
 export class BookingsService {
+  private isPrismaNotFoundError(error: unknown): error is { code: 'P2025' } {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      error.code === 'P2025'
+    );
+  }
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly googleCalendarService: GoogleCalendarService,
@@ -111,6 +120,53 @@ export class BookingsService {
     }
 
     return {
+      user,
+    };
+  }
+
+  async connectCalendar(
+    userId: string,
+    calendarId: string,
+  ): Promise<{
+    ok: true;
+    user: {
+      id: string;
+      email: string;
+      googleCalendarId: string | null;
+    };
+  }> {
+    const normalizedCalendarId = calendarId.trim();
+
+    if (!normalizedCalendarId) {
+      throw new BadRequestException('calendarId is required');
+    }
+
+    let user: { id: string; email: string; googleCalendarId: string | null };
+
+    try {
+      user = await this.prisma.user.update({
+        where: {
+          id: userId,
+        },
+        data: {
+          googleCalendarId: normalizedCalendarId,
+        },
+        select: {
+          id: true,
+          email: true,
+          googleCalendarId: true,
+        },
+      });
+    } catch (error: unknown) {
+      if (this.isPrismaNotFoundError(error)) {
+        throw new NotFoundException('User not found');
+      }
+
+      throw error;
+    }
+
+    return {
+      ok: true,
       user,
     };
   }
