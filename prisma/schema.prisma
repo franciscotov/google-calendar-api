@@ -15,8 +15,8 @@ datasource db {
 
 model User {
   id          String      @id @default(uuid())
-  email       String      @unique
-  name        String?
+  email       String      @unique @db.VarChar(150)
+  name        String?     @db.VarChar(150)
   googleCalendarId String?
 
   createAt    DateTime    @db.Timestamptz(3)    @default(now())
@@ -28,7 +28,7 @@ model User {
 model Booking {
   id          String      @id @default(uuid())
   date        DateTime
-  title       String
+  title       String      @db.VarChar(250)
 
   startsAt     DateTime   @db.Timestamptz(3)
   endsAt       DateTime   @db.Timestamptz(3)
