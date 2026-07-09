@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { User } from '../../generated/prisma/client';
+import { UserCreateInput } from '../../generated/prisma/models';
 
 @Injectable()
 export class UsersService {
@@ -13,18 +14,11 @@ export class UsersService {
   async findById(id: string) {
     return this.prisma.user.findUnique({ where: { id } });
   }
+  async findByAuth0Id(auth0Id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({ where: { auth0Id } });
+  }
 
-  createUser(params: {
-    email: string;
-    name?: string;
-    googleCalendarId?: string;
-  }) {
-    return this.prisma.user.create({
-      data: {
-        email: params.email,
-        name: params.name,
-        googleCalendarId: params.googleCalendarId,
-      },
-    });
+  async create(user: UserCreateInput) {
+    return this.prisma.user.create({ data: user });
   }
 }

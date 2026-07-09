@@ -1,7 +1,8 @@
-import { BadRequestException, UnauthorizedException } from '@nestjs/common';
+// import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
+// import { UserCreateInput } from '../../generated/prisma/models';
 
 jest.mock('../users/users.service', () => ({
   UsersService: class UsersService {},
@@ -12,7 +13,8 @@ describe('AuthService', () => {
 
   const usersService = {
     findByEmail: jest.fn(),
-    createUser: jest.fn(),
+    create: jest.fn(),
+    findByAuth0Id: jest.fn(),
   } as unknown as jest.Mocked<UsersService>;
 
   const jwtService = {
@@ -24,61 +26,87 @@ describe('AuthService', () => {
     service = new AuthService(usersService, jwtService);
   });
 
-  it('register should throw when email already exists', async () => {
-    usersService.findByEmail = jest.fn().mockResolvedValue({
-      id: 'user-1',
-      email: 'test@example.com',
-    });
+  it('createSession should return the access token just calling findByAuth0Id if the user exists', async () => {
+    const findByAuth0IdSpy = jest
+      .spyOn(usersService, 'findByAuth0Id')
+      .mockResolvedValue({
+        id: 'user-1',
+        email: 'test@example.com',
+        auth0Id: 'auth0|user-1',
+        emailVerified: true,
+        name: 'Fran',
+        picture: 'https://example.com/picture.jpg',
+        googleCalendarId: null,
+        createAt: new Date(),
+        updateAt: new Date(),
+      });
+    const signAsyncSpy = jest
+      .spyOn(jwtService, 'signAsync')
+      .mockResolvedValue('jwt-token');
 
     await expect(
-      service.register({ email: 'test@example.com', name: 'Fran' }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('register should create user and return access token', async () => {
-    usersService.findByEmail = jest.fn().mockResolvedValue(null);
-    usersService.createUser = jest.fn().mockResolvedValue({
-      id: 'user-1',
-      email: 'test@example.com',
-    });
-    jwtService.signAsync = jest.fn().mockResolvedValue('jwt-token');
-
-    await expect(
-      service.register({ email: 'test@example.com', name: 'Fran' }),
+      service.createSession({
+        email: 'test@example.com',
+        sub: 'auth0|user-1',
+        email_verified: true,
+        name: 'Fran',
+        picture: 'https://example.com/picture.jpg',
+      }),
     ).resolves.toEqual({ accessToken: 'jwt-token' });
 
-    expect(usersService.createUser).toHaveBeenCalledWith({
-      email: 'test@example.com',
-      name: 'Fran',
-    });
-    expect(jwtService.signAsync).toHaveBeenCalledWith({
+    expect(findByAuth0IdSpy).toHaveBeenCalledWith('auth0|user-1');
+    expect(signAsyncSpy).toHaveBeenCalledWith({
       sub: 'user-1',
       email: 'test@example.com',
+      googleCalendarId: 'test@example.com',
+      auth0Id: 'auth0|user-1',
     });
   });
 
-  it('login should throw when user is not found', async () => {
-    usersService.findByEmail = jest.fn().mockResolvedValue(null);
+  it('createSession should return the access token calling create if the user does not exist', async () => {
+    const createSpy = jest.spyOn(usersService, 'create').mockResolvedValue({
+      id: 'user-1',
+      email: 'test@example.com',
+      auth0Id: 'auth0|user-1',
+      emailVerified: true,
+      name: 'Fran',
+      picture: 'https://example.com/picture.jpg',
+      googleCalendarId: null,
+      createAt: new Date(),
+      updateAt: new Date(),
+    });
+
+    const findByAuth0IdSpy = jest
+      .spyOn(usersService, 'findByAuth0Id')
+      .mockResolvedValue(null);
+    const signAsyncSpy = jest
+      .spyOn(jwtService, 'signAsync')
+      .mockResolvedValue('jwt-token');
 
     await expect(
-      service.login({ email: 'missing@example.com' }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
-  });
+      service.createSession({
+        email: 'test@example.com',
+        sub: 'auth0|user-1',
+        email_verified: true,
+        name: 'Fran',
+        picture: 'https://example.com/picture.jpg',
+      }),
+    ).resolves.toEqual({ accessToken: 'jwt-token' });
 
-  it('login should return access token for existing user', async () => {
-    usersService.findByEmail = jest.fn().mockResolvedValue({
-      id: 'user-2',
-      email: 'ok@example.com',
+    expect(findByAuth0IdSpy).toHaveBeenCalledWith('auth0|user-1');
+
+    expect(createSpy).toHaveBeenCalledWith({
+      email: 'test@example.com',
+      auth0Id: 'auth0|user-1',
+      emailVerified: true,
+      name: 'Fran',
+      picture: 'https://example.com/picture.jpg',
     });
-    jwtService.signAsync = jest.fn().mockResolvedValue('login-token');
-
-    await expect(service.login({ email: 'ok@example.com' })).resolves.toEqual({
-      accessToken: 'login-token',
-    });
-
-    expect(jwtService.signAsync).toHaveBeenCalledWith({
-      sub: 'user-2',
-      email: 'ok@example.com',
+    expect(signAsyncSpy).toHaveBeenCalledWith({
+      sub: 'user-1',
+      email: 'test@example.com',
+      googleCalendarId: 'test@example.com',
+      auth0Id: 'auth0|user-1',
     });
   });
 });
