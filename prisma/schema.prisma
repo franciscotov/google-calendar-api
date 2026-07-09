@@ -14,15 +14,18 @@ datasource db {
 }
 
 model User {
-  id          String      @id @default(uuid())
-  email       String      @unique @db.VarChar(150)
-  name        String?     @db.VarChar(150)
-  googleCalendarId String?
+  id                String      @id @default(uuid())
+  auth0Id           String      @unique @db.VarChar(150)
+  email             String      @unique @db.VarChar(150)
+  emailVerified     Boolean?    @db.Boolean
+  picture           String?     @db.VarChar(250)
+  name              String?     @db.VarChar(150)
+  googleCalendarId  String?
 
-  createAt    DateTime    @db.Timestamptz(3)    @default(now())
-  updateAt    DateTime    @db.Timestamptz(3)    @updatedAt
+  createAt          DateTime    @db.Timestamptz(3)    @default(now())
+  updateAt          DateTime    @db.Timestamptz(3)    @updatedAt
 
-  bookings    Booking[]
+  bookings          Booking[]
 }
 
 model Booking {
