@@ -11,6 +11,28 @@ export type Auth0User = {
   picture: string;
 };
 
+export type Auth0UserProfile = {
+  sub: string;
+  name: string;
+  given_name: string;
+  family_name: string;
+  nickname: string;
+  picture: string;
+  updated_at: string;
+  email: string;
+  email_verified: boolean;
+};
+
+export type Auth0Payload = {
+  sub: string;
+  iss: string;
+  aud: string[];
+  iat: number;
+  exp: number;
+  scope: string;
+  azp: string;
+};
+
 @Injectable()
 export class Auth0Strategy extends PassportStrategy(Strategy, 'auth0') {
   constructor() {
@@ -31,7 +53,7 @@ export class Auth0Strategy extends PassportStrategy(Strategy, 'auth0') {
     });
   }
 
-  validate(payload: Auth0User) {
+  validate(payload: Auth0Payload) {
     return payload;
   }
 }
