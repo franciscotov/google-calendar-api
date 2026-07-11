@@ -1,29 +1,122 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { calendar_v3, google } from 'googleapis';
+import { firstValueFrom } from 'rxjs';
 import { PrismaService } from '../prisma/prisma.service';
 
 type ConflictCheckInput = {
   startsAt: Date;
   endsAt: Date;
   userId?: string;
-  googleAccessToken?: string;
   calendarId?: string;
 };
 
 @Injectable()
 export class GoogleCalendarService {
   private readonly logger = new Logger(GoogleCalendarService.name);
-  private static readonly CALENDAR_READONLY_SCOPE =
-    'https://www.googleapis.com/auth/calendar.readonly';
-
-  private static readonly CALENDAR_FREEBUSY_SCOPE =
-    'https://www.googleapis.com/auth/calendar.freebusy';
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
+    private readonly http: HttpService,
   ) {}
+
+  private async getAuth0ManagementToken(): Promise<string | null> {
+    const domain = this.configService.get<string>('AUTH0_DOMAIN');
+    const clientId = this.configService.get<string>('AUTH0_M2M_CLIENT_ID');
+    const clientSecret = this.configService.get<string>(
+      'AUTH0_M2M_CLIENT_SECRET',
+    );
+
+    if (!domain || !clientId || !clientSecret) {
+      return null;
+    }
+
+    try {
+      const { data } = await firstValueFrom(
+        this.http.post<{ access_token: string }>(
+          `https://${domain}/oauth/token`,
+          {
+            grant_type: 'client_credentials',
+            client_id: clientId,
+            client_secret: clientSecret,
+            audience: `https://${domain}/api/v2/`,
+          },
+        ),
+      );
+
+      return data.access_token ?? null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Could not get Auth0 management token: ${message}`);
+      return null;
+    }
+  }
+
+  private async getGoogleAccessTokenFromAuth0User(
+    userId?: string,
+  ): Promise<string | null> {
+    if (!userId) {
+      return null;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { auth0Id: true },
+    });
+
+    if (!user?.auth0Id) {
+      return null;
+    }
+
+    const managementToken = await this.getAuth0ManagementToken();
+
+    if (!managementToken) {
+      return null;
+    }
+
+    const domain = this.configService.get<string>('AUTH0_DOMAIN');
+
+    if (!domain) {
+      return null;
+    }
+
+    try {
+      const { data } = await firstValueFrom(
+        this.http.get<{
+          identities?: Array<{ provider?: string; access_token?: string }>;
+        }>(
+          `https://${domain}/api/v2/users/${encodeURIComponent(user.auth0Id)}`,
+          {
+            params: {
+              fields: 'identities',
+              include_fields: 'true',
+            },
+            headers: {
+              Authorization: `Bearer ${managementToken}`,
+            },
+          },
+        ),
+      );
+
+      const googleIdentity = data.identities?.find(
+        (identity) => identity.provider === 'google-oauth2',
+      );
+
+      if (googleIdentity?.access_token) {
+        return googleIdentity.access_token;
+      }
+
+      return null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `Could not get Google provider token from Auth0 for user ${userId}: ${message}`,
+      );
+      return null;
+    }
+  }
 
   private async resolveCalendarId(
     userId?: string,
@@ -53,44 +146,27 @@ export class GoogleCalendarService {
     return this.configService.get<string>('GOOGLE_CALENDAR_ID') ?? 'primary';
   }
 
-  private getAuthClient(
-    googleAccessToken?: string,
-  ): calendar_v3.Options['auth'] | null {
-    if (googleAccessToken?.trim()) {
-      const auth = new google.auth.OAuth2();
-      auth.setCredentials({ access_token: googleAccessToken.trim() });
-      this.logger.debug('Using request-scoped Google OAuth2 access token');
-      return auth;
-    }
+  private async getAuthClient(
+    userId?: string,
+  ): Promise<calendar_v3.Options['auth'] | null> {
+    const tokenFromAuth0 = await this.getGoogleAccessTokenFromAuth0User(userId);
 
-    const projectEmail = this.configService.get<string>(
-      'GOOGLE_SERVICE_ACCOUNT_EMAIL',
-    );
-    const privateKey = this.configService.get<string>(
-      'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY',
-    );
+    const effectiveAccessToken = tokenFromAuth0;
 
-    if (!projectEmail || !privateKey) {
+    if (!effectiveAccessToken) {
       return null;
     }
 
-    if (!privateKey.includes('BEGIN PRIVATE KEY')) {
-      throw new Error(
-        'GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY is not a valid private key. Use the private_key from a service-account JSON, not an API key.',
-      );
-    }
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({
+      access_token: effectiveAccessToken,
+    });
 
     this.logger.debug(
-      'Using GOOGLE_SERVICE_ACCOUNT_EMAIL/PRIVATE_KEY for Calendar',
+      'Using Google OAuth2 access token obtained from Auth0 identities',
     );
-    return new google.auth.JWT({
-      email: projectEmail,
-      key: privateKey.replace(/\\n/g, '\n'),
-      scopes: [
-        GoogleCalendarService.CALENDAR_READONLY_SCOPE,
-        GoogleCalendarService.CALENDAR_FREEBUSY_SCOPE,
-      ],
-    });
+
+    return auth;
   }
 
   async hasConflict(input: ConflictCheckInput): Promise<boolean> {
@@ -100,7 +176,7 @@ export class GoogleCalendarService {
     );
 
     try {
-      const auth = this.getAuthClient(input.googleAccessToken);
+      const auth = await this.getAuthClient(input.userId);
 
       // Skip external provider validation when Google credentials are missing.
       if (!auth) {

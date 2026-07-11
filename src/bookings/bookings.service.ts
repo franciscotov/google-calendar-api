@@ -24,11 +24,7 @@ export class BookingsService {
     private readonly googleCalendarService: GoogleCalendarService,
   ) {}
 
-  async createBooking(
-    userId: string,
-    dto: CreateBookingDto,
-    googleAccessToken?: string,
-  ) {
+  async createBooking(userId: string, dto: CreateBookingDto) {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(dto.endsAt);
 
@@ -46,7 +42,6 @@ export class BookingsService {
       endsAt,
       userId,
       calendarId: user?.googleCalendarId ?? undefined,
-      googleAccessToken,
     });
 
     if (googleConflict) {

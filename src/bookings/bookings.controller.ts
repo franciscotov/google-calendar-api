@@ -26,12 +26,8 @@ export class BookingsController {
   }
 
   @Post()
-  create(
-    @CurrentUser() user: JwtUserDto,
-    @Body() dto: CreateBookingDto,
-    @Headers('x-google-access-token') googleAccessToken?: string,
-  ) {
-    return this.bookingsService.createBooking(user.sub, dto, googleAccessToken);
+  create(@CurrentUser() user: JwtUserDto, @Body() dto: CreateBookingDto) {
+    return this.bookingsService.createBooking(user.sub, dto);
   }
 
   @Delete(':bookingId')

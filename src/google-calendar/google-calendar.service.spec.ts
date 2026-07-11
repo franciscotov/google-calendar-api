@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import { HttpService } from '@nestjs/axios';
 import {
   afterEach,
   beforeEach,
@@ -34,6 +35,11 @@ describe('GoogleCalendarService', () => {
     },
   } as unknown as PrismaService;
 
+  const http = {
+    post: jest.fn(),
+    get: jest.fn(),
+  } as unknown as HttpService;
+
   const query = jest.fn<(params: any) => Promise<any>>();
   const calendar = jest.fn().mockReturnValue({
     freebusy: {
@@ -43,7 +49,7 @@ describe('GoogleCalendarService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new GoogleCalendarService(configService, prisma);
+    service = new GoogleCalendarService(configService, prisma, http);
     jest.spyOn(google, 'calendar').mockImplementation(calendar as never);
   });
 
@@ -85,7 +91,6 @@ describe('GoogleCalendarService', () => {
         startsAt: new Date('2026-06-22T10:00:00.000Z'),
         endsAt: new Date('2026-06-22T11:00:00.000Z'),
         calendarId: 'primary',
-        googleAccessToken: 'token-1',
       }),
     ).resolves.toBe(true);
 
@@ -108,7 +113,6 @@ describe('GoogleCalendarService', () => {
         startsAt: new Date('2026-06-22T10:00:00.000Z'),
         endsAt: new Date('2026-06-22T11:00:00.000Z'),
         calendarId: 'primary',
-        googleAccessToken: 'token-1',
       }),
     ).resolves.toBe(false);
   });
@@ -130,7 +134,6 @@ describe('GoogleCalendarService', () => {
         startsAt: new Date('2026-06-22T10:00:00.000Z'),
         endsAt: new Date('2026-06-22T11:00:00.000Z'),
         calendarId: 'primary',
-        googleAccessToken: 'token-1',
       }),
     ).resolves.toBe(false);
   });
@@ -143,7 +146,6 @@ describe('GoogleCalendarService', () => {
         startsAt: new Date('2026-06-22T10:00:00.000Z'),
         endsAt: new Date('2026-06-22T11:00:00.000Z'),
         calendarId: 'primary',
-        googleAccessToken: 'token-1',
       }),
     ).resolves.toBe(false);
   });
@@ -164,7 +166,6 @@ describe('GoogleCalendarService', () => {
       startsAt: new Date('2026-06-22T10:00:00.000Z'),
       endsAt: new Date('2026-06-22T11:00:00.000Z'),
       userId: 'user-1',
-      googleAccessToken: 'token-1',
     });
 
     expect(query).toHaveBeenCalledWith(
