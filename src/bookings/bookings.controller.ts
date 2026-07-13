@@ -3,22 +3,26 @@ import {
   Controller,
   Delete,
   Get,
-  Headers,
   Param,
   Patch,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { Auth0Guard } from '../common/guards/auth0.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { JwtUserDto } from '../common/dto/jwt-user.dto';
 import { BookingsService } from './bookings.service';
 import { CreateBookingDto } from './dto/create-booking.dto';
+import { AuthService } from '../auth/auth.service';
+import { ExtractJwt } from 'passport-jwt';
 
 @Controller('bookings')
-@UseGuards(JwtAuthGuard)
+@UseGuards(Auth0Guard)
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) {}
+  constructor(private readonly bookingsService: BookingsService,
+    private readonly authService: AuthService
+  ) { }
 
   @Get()
   list(@CurrentUser() user: JwtUserDto) {
@@ -26,7 +30,9 @@ export class BookingsController {
   }
 
   @Post()
-  create(@CurrentUser() user: JwtUserDto, @Body() dto: CreateBookingDto) {
+  async create(@Req() req: unknown, @Body() dto: CreateBookingDto) {
+    const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+    const user = await this.authService.getUserProfileFromAuth0(token!);
     return this.bookingsService.createBooking(user.sub, dto);
   }
 

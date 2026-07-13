@@ -33,8 +33,7 @@ export class BookingsService {
     }
 
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { googleCalendarId: true },
+      where: { auth0Id: userId },
     });
 
     const googleConflict = await this.googleCalendarService.hasConflict({
