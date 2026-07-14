@@ -9,6 +9,7 @@ type JwtPayload = {
   email: string;
 };
 
+// this strategy is not been used, this is only for demo purpose
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(

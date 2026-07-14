@@ -20,9 +20,10 @@ import { ExtractJwt } from 'passport-jwt';
 @Controller('bookings')
 @UseGuards(Auth0Guard)
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService,
-    private readonly authService: AuthService
-  ) { }
+  constructor(
+    private readonly bookingsService: BookingsService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: JwtUserDto) {

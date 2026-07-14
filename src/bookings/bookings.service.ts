@@ -24,7 +24,7 @@ export class BookingsService {
     private readonly googleCalendarService: GoogleCalendarService,
   ) {}
 
-  async createBooking(userId: string, dto: CreateBookingDto) {
+  async createBooking(auth0Id: string, dto: CreateBookingDto) {
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(dto.endsAt);
 
@@ -33,44 +33,51 @@ export class BookingsService {
     }
 
     const user = await this.prisma.user.findUnique({
-      where: { auth0Id: userId },
+      where: { auth0Id },
+      select: { id: true, email: true, auth0Id: true },
     });
 
-    const googleConflict = await this.googleCalendarService.hasConflict({
-      startsAt,
-      endsAt,
-      userId,
-      calendarId: user?.googleCalendarId ?? undefined,
-    });
-
-    if (googleConflict) {
-      throw new ConflictException('Booking conflicts with Google Calendar');
-    }
-
-    const localConflict = await this.prisma.booking.findFirst({
-      where: {
-        startsAt: {
-          lt: endsAt,
-        },
-        endsAt: {
-          gt: startsAt,
-        },
-      },
-    });
-
-    if (localConflict) {
-      throw new ConflictException('Booking conflicts with an existing booking');
-    }
-
-    return this.prisma.booking.create({
-      data: {
-        title: dto.title,
-        date: startsAt,
+    if (user) {
+      const googleConflict = await this.googleCalendarService.hasConflict({
         startsAt,
         endsAt,
-        userId,
-      },
-    });
+        auth0Id: user.auth0Id,
+        calendarId: user.email,
+      });
+
+      if (googleConflict) {
+        throw new ConflictException('Booking conflicts with Google Calendar');
+      }
+
+      const localConflict = await this.prisma.booking.findFirst({
+        where: {
+          startsAt: {
+            lt: endsAt,
+          },
+          endsAt: {
+            gt: startsAt,
+          },
+        },
+      });
+
+      if (localConflict) {
+        throw new ConflictException(
+          'Booking conflicts with an existing booking',
+        );
+      }
+
+      return this.prisma.booking.create({
+        data: {
+          title: dto.title,
+          date: startsAt,
+          startsAt,
+          endsAt,
+          userId: user.id,
+        },
+      });
+    } else {
+      throw new BadRequestException('Could not find the user');
+    }
   }
 
   async cancelBooking(userId: string, bookingId: string) {

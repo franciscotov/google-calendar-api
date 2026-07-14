@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 type ConflictCheckInput = {
   startsAt: Date;
   endsAt: Date;
-  userId?: string;
+  auth0Id?: string;
   calendarId?: string;
 };
 
@@ -24,10 +24,8 @@ export class GoogleCalendarService {
 
   private async getAuth0ManagementToken(): Promise<string | null> {
     const domain = this.configService.get<string>('AUTH0_DOMAIN');
-    const clientId = this.configService.get<string>('AUTH0_M2M_CLIENT_ID');
-    const clientSecret = this.configService.get<string>(
-      'AUTH0_M2M_CLIENT_SECRET',
-    );
+    const clientId = this.configService.get<string>('AUTH0_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('AUTH0_CLIENT_SECRET');
 
     if (!domain || !clientId || !clientSecret) {
       return null;
@@ -55,30 +53,15 @@ export class GoogleCalendarService {
   }
 
   private async getGoogleAccessTokenFromAuth0User(
-    userId?: string,
+    auth0Id?: string,
   ): Promise<string | null> {
-    if (!userId) {
+    if (!auth0Id) {
       return null;
     }
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { auth0Id: true },
-    });
-
-    if (!user?.auth0Id) {
-      return null;
-    }
-
     const managementToken = await this.getAuth0ManagementToken();
-
-    if (!managementToken) {
-      return null;
-    }
-
     const domain = this.configService.get<string>('AUTH0_DOMAIN');
 
-    if (!domain) {
+    if (!managementToken || !domain) {
       return null;
     }
 
@@ -86,18 +69,15 @@ export class GoogleCalendarService {
       const { data } = await firstValueFrom(
         this.http.get<{
           identities?: Array<{ provider?: string; access_token?: string }>;
-        }>(
-          `https://${domain}/api/v2/users/${encodeURIComponent(user.auth0Id)}`,
-          {
-            params: {
-              fields: 'identities',
-              include_fields: 'true',
-            },
-            headers: {
-              Authorization: `Bearer ${managementToken}`,
-            },
+        }>(`https://${domain}/api/v2/users/${encodeURIComponent(auth0Id)}`, {
+          params: {
+            fields: 'identities',
+            include_fields: 'true',
           },
-        ),
+          headers: {
+            Authorization: `Bearer ${managementToken}`,
+          },
+        }),
       );
 
       const googleIdentity = data.identities?.find(
@@ -112,54 +92,25 @@ export class GoogleCalendarService {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
-        `Could not get Google provider token from Auth0 for user ${userId}: ${message}`,
+        `Could not get Google provider token from Auth0 for user ${auth0Id}: ${message}`,
       );
       return null;
     }
   }
 
-  private async resolveCalendarId(
-    userId?: string,
-    explicitCalendarId?: string,
-  ): Promise<string> {
-    if (explicitCalendarId && explicitCalendarId.trim()) {
-      return explicitCalendarId.trim();
-    }
-
-    if (!userId) {
-      return this.configService.get<string>('GOOGLE_CALENDAR_ID') ?? 'primary';
-    }
-
-    try {
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { googleCalendarId: true },
-      });
-
-      if (user?.googleCalendarId) {
-        return user.googleCalendarId;
-      }
-    } catch {
-      // Fallback to global calendar id when user lookup fails.
-    }
-
-    return this.configService.get<string>('GOOGLE_CALENDAR_ID') ?? 'primary';
-  }
-
   private async getAuthClient(
-    userId?: string,
+    auth0Id?: string,
   ): Promise<calendar_v3.Options['auth'] | null> {
-    const tokenFromAuth0 = await this.getGoogleAccessTokenFromAuth0User(userId);
+    const tokenFromAuth0 =
+      await this.getGoogleAccessTokenFromAuth0User(auth0Id);
 
-    const effectiveAccessToken = tokenFromAuth0;
-
-    if (!effectiveAccessToken) {
+    if (!tokenFromAuth0) {
       return null;
     }
 
     const auth = new google.auth.OAuth2();
     auth.setCredentials({
-      access_token: effectiveAccessToken,
+      access_token: tokenFromAuth0,
     });
 
     this.logger.debug(
@@ -170,13 +121,10 @@ export class GoogleCalendarService {
   }
 
   async hasConflict(input: ConflictCheckInput): Promise<boolean> {
-    const calendarId = await this.resolveCalendarId(
-      input.userId,
-      input.calendarId,
-    );
+    const calendarId = input.calendarId;
 
     try {
-      const auth = await this.getAuthClient(input.userId);
+      const auth = await this.getAuthClient(input.auth0Id);
 
       // Skip external provider validation when Google credentials are missing.
       if (!auth) {
@@ -195,13 +143,13 @@ export class GoogleCalendarService {
       const response = await calendar.freebusy.query({
         requestBody: {
           timeZone: 'UTC',
-          items: [{ id: calendarId }],
+          items: [{ id: input.calendarId }],
           timeMin: input.startsAt.toISOString(),
           timeMax: input.endsAt.toISOString(),
         },
       });
 
-      const calendarResult = response.data.calendars?.[calendarId];
+      const calendarResult = response.data.calendars?.[calendarId!];
 
       if (calendarResult?.errors?.length) {
         this.logger.error(
