@@ -40,8 +40,8 @@ model Booking {
   updateAt    DateTime    @db.Timestamptz(3)    @updatedAt
   googleEventId String?
 
-  @@index([userId, startsAt])
+  @@index([userAuth0Id, startsAt])
 
-  userId      String
-  user        User        @relation(fields: [userId], references: [id])
+  userAuth0Id  String
+  user        User        @relation(fields: [userAuth0Id], references: [auth0Id])
 }

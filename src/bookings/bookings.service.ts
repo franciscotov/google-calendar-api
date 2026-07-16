@@ -72,7 +72,7 @@ export class BookingsService {
           date: startsAt,
           startsAt,
           endsAt,
-          userId: user.id,
+          userAuth0Id: user.auth0Id,
         },
       });
     } else {
@@ -80,11 +80,11 @@ export class BookingsService {
     }
   }
 
-  async cancelBooking(userId: string, bookingId: string) {
+  async cancelBooking(auth0Id: string, bookingId: string) {
     const existing = await this.prisma.booking.findFirst({
       where: {
         id: bookingId,
-        userId,
+        userAuth0Id: auth0Id,
       },
     });
 
@@ -104,77 +104,9 @@ export class BookingsService {
     };
   }
 
-  async getConnectedCalendar(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
-      select: {
-        id: true,
-        email: true,
-        googleCalendarId: true,
-      },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    return {
-      user,
-    };
-  }
-
-  async connectCalendar(
-    userId: string,
-    calendarId: string,
-  ): Promise<{
-    ok: true;
-    user: {
-      id: string;
-      email: string;
-      googleCalendarId: string | null;
-    };
-  }> {
-    const normalizedCalendarId = calendarId.trim();
-
-    if (!normalizedCalendarId) {
-      throw new BadRequestException('calendarId is required');
-    }
-
-    let user: { id: string; email: string; googleCalendarId: string | null };
-
-    try {
-      user = await this.prisma.user.update({
-        where: {
-          id: userId,
-        },
-        data: {
-          googleCalendarId: normalizedCalendarId,
-        },
-        select: {
-          id: true,
-          email: true,
-          googleCalendarId: true,
-        },
-      });
-    } catch (error: unknown) {
-      if (this.isPrismaNotFoundError(error)) {
-        throw new NotFoundException('User not found');
-      }
-
-      throw error;
-    }
-
-    return {
-      ok: true,
-      user,
-    };
-  }
-
-  listBookings(userId: string) {
+  listBookings(auth0Id: string) {
     return this.prisma.booking.findMany({
-      where: { userId },
+      where: { userAuth0Id: auth0Id },
       orderBy: { startsAt: 'asc' },
     });
   }
