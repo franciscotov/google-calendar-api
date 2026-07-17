@@ -10,7 +10,6 @@ import {
 } from '@jest/globals';
 import { google } from 'googleapis';
 import { GoogleCalendarService } from './google-calendar.service';
-import { PrismaService } from '../prisma/prisma.service';
 
 jest.mock('../prisma/prisma.service', () => ({
   PrismaService: class PrismaService {},
@@ -29,12 +28,6 @@ describe('GoogleCalendarService', () => {
     get: getConfig,
   } as unknown as ConfigService;
 
-  const prisma = {
-    user: {
-      findUnique,
-    },
-  } as unknown as PrismaService;
-
   const http = {
     post: jest.fn(),
     get: jest.fn(),
@@ -49,8 +42,9 @@ describe('GoogleCalendarService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new GoogleCalendarService(configService, prisma, http);
+    service = new GoogleCalendarService(configService, http);
     jest.spyOn(google, 'calendar').mockImplementation(calendar as never);
+    jest.spyOn(service as any, 'getAuthClient').mockResolvedValue({});
   });
 
   afterEach(() => {
@@ -58,6 +52,7 @@ describe('GoogleCalendarService', () => {
   });
 
   it('hasConflict should return false when no auth credentials are configured', async () => {
+    jest.spyOn(service as any, 'getAuthClient').mockRejectedValue('No auth');
     getConfig.mockReturnValue(undefined);
 
     await expect(
@@ -91,6 +86,7 @@ describe('GoogleCalendarService', () => {
         startsAt: new Date('2026-06-22T10:00:00.000Z'),
         endsAt: new Date('2026-06-22T11:00:00.000Z'),
         calendarId: 'primary',
+        auth0Id: 'user-1',
       }),
     ).resolves.toBe(true);
 
@@ -165,7 +161,8 @@ describe('GoogleCalendarService', () => {
     await service.hasConflict({
       startsAt: new Date('2026-06-22T10:00:00.000Z'),
       endsAt: new Date('2026-06-22T11:00:00.000Z'),
-      userId: 'user-1',
+      auth0Id: 'user-1',
+      calendarId: 'team@company.com',
     });
 
     expect(query).toHaveBeenCalledWith(

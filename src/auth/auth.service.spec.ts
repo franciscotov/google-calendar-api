@@ -1,8 +1,7 @@
-// import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
-// import { UserCreateInput } from '../../generated/prisma/models';
+import { HttpService } from '@nestjs/axios';
 
 jest.mock('../users/users.service', () => ({
   UsersService: class UsersService {},
@@ -21,9 +20,14 @@ describe('AuthService', () => {
     signAsync: jest.fn(),
   } as unknown as jest.Mocked<JwtService>;
 
+  const http = {
+    post: jest.fn(),
+    get: jest.fn(),
+  } as unknown as HttpService;
+
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new AuthService(usersService, jwtService);
+    service = new AuthService(usersService, jwtService, http);
   });
 
   it('createSession should return the access token just calling findByAuth0Id if the user exists', async () => {

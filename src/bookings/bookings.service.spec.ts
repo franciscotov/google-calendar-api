@@ -78,7 +78,9 @@ describe('BookingsService', () => {
   });
 
   it('createBooking should persist booking when no conflict exists', async () => {
-    prisma.user.findUnique = jest.fn().mockResolvedValue(null);
+    prisma.user.findUnique = jest
+      .fn()
+      .mockResolvedValue({ auth0Id: 'user-1', email: '' });
     googleCalendarService.hasConflict = jest.fn().mockResolvedValue(false);
     prisma.booking.findFirst = jest.fn().mockResolvedValue(null);
     prisma.booking.create = jest.fn().mockResolvedValue({ id: 'booking-1' });
@@ -98,7 +100,7 @@ describe('BookingsService', () => {
         {
           data: {
             title: string;
-            userId: string;
+            userAuth0Id: string;
             startsAt: Date;
             endsAt: Date;
           };
@@ -106,9 +108,8 @@ describe('BookingsService', () => {
       ]
     >;
     const createArgs = createCalls[0][0];
-
     expect(createArgs.data.title).toBe('Planning meeting');
-    expect(createArgs.data.userId).toBe('user-1');
+    expect(createArgs.data.userAuth0Id).toBe('user-1');
     expect(createArgs.data.startsAt).toBeInstanceOf(Date);
     expect(createArgs.data.endsAt).toBeInstanceOf(Date);
   });
@@ -141,81 +142,6 @@ describe('BookingsService', () => {
     });
   });
 
-  it('getConnectedCalendar should throw when user does not exist', async () => {
-    prisma.user.findUnique = jest.fn().mockResolvedValue(null);
-
-    await expect(service.getConnectedCalendar('user-1')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
-  });
-
-  it('getConnectedCalendar should return selected user fields', async () => {
-    prisma.user.findUnique = jest.fn().mockResolvedValue({
-      id: 'user-1',
-      email: 'user@example.com',
-      googleCalendarId: 'primary',
-    });
-
-    await expect(service.getConnectedCalendar('user-1')).resolves.toEqual({
-      user: {
-        id: 'user-1',
-        email: 'user@example.com',
-        googleCalendarId: 'primary',
-      },
-    });
-  });
-
-  it('connectCalendar should validate calendar id', async () => {
-    await expect(
-      service.connectCalendar('user-1', '   '),
-    ).rejects.toBeInstanceOf(BadRequestException);
-  });
-
-  it('connectCalendar should throw not found when user is missing', async () => {
-    prisma.user.update = jest.fn().mockRejectedValue({ code: 'P2025' });
-
-    await expect(
-      service.connectCalendar('user-1', 'primary'),
-    ).rejects.toBeInstanceOf(NotFoundException);
-  });
-
-  it('connectCalendar should persist trimmed calendar id', async () => {
-    prisma.user.update = jest.fn().mockResolvedValue({
-      id: 'user-1',
-      email: 'user@example.com',
-      googleCalendarId: 'primary',
-    });
-
-    await expect(
-      service.connectCalendar('user-1', '  primary  '),
-    ).resolves.toEqual({
-      ok: true,
-      user: {
-        id: 'user-1',
-        email: 'user@example.com',
-        googleCalendarId: 'primary',
-      },
-    });
-
-    const userPrisma = prisma.user as unknown as {
-      update: jest.Mock;
-    };
-    const updateMock = userPrisma.update;
-    expect(updateMock).toHaveBeenCalledWith({
-      where: {
-        id: 'user-1',
-      },
-      data: {
-        googleCalendarId: 'primary',
-      },
-      select: {
-        id: true,
-        email: true,
-        googleCalendarId: true,
-      },
-    });
-  });
-
   it('listBookings should query by user ordered by startsAt', async () => {
     prisma.booking.findMany = jest.fn().mockResolvedValue([]);
 
@@ -226,7 +152,7 @@ describe('BookingsService', () => {
     };
     const findManyMock = bookingPrisma.findMany;
     expect(findManyMock).toHaveBeenCalledWith({
-      where: { userId: 'user-9' },
+      where: { userAuth0Id: 'user-9' },
       orderBy: { startsAt: 'asc' },
     });
   });

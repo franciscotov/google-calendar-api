@@ -3,7 +3,6 @@ import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { calendar_v3, google } from 'googleapis';
 import { firstValueFrom } from 'rxjs';
-import { PrismaService } from '../prisma/prisma.service';
 
 type ConflictCheckInput = {
   startsAt: Date;
@@ -18,7 +17,6 @@ export class GoogleCalendarService {
 
   constructor(
     private readonly configService: ConfigService,
-    private readonly prisma: PrismaService,
     private readonly http: HttpService,
   ) {}
 
@@ -143,7 +141,7 @@ export class GoogleCalendarService {
       const response = await calendar.freebusy.query({
         requestBody: {
           timeZone: 'UTC',
-          items: [{ id: input.calendarId }],
+          items: [{ id: calendarId }],
           timeMin: input.startsAt.toISOString(),
           timeMax: input.endsAt.toISOString(),
         },
